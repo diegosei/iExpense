@@ -5,102 +5,56 @@
 //  Created by Diego Seitler on 08/07/2026.
 //
 
+import SwiftData
 import SwiftUI
-
-struct ExpenseItem: Identifiable, Codable {
-    var id = UUID()
-    let name: String
-    let type: String
-    var amount: Double
-    
-    var amountStyle: Color {
-        switch amount {
-        case ..<10: .green
-        case 10..<100: .orange
-        case 100..<1000: .red
-        default: .black
-        }
-    }
-}
-
-struct Categories {
-    let category = [String]()
-}
-
-@Observable
-class Expenses {
-    var items = [ExpenseItem]() {
-        didSet {
-            if let encoded = try? JSONEncoder().encode(items) {
-                UserDefaults.standard.set(encoded, forKey: "newItems")
-            }
-        }
-    }
-    
-    init() {
-        if let savedItems = UserDefaults.standard.data(forKey: "newItems") {
-            if let decodedItems = try? JSONDecoder().decode([ExpenseItem].self, from: savedItems) {
-                items = decodedItems
-                return
-            }
-        }
-        items = []
-}
-}
 
 struct ContentView: View {
     
-    @State private var expenses = Expenses()
-    let currencyCode = Locale.current.currency?.identifier ?? "USD"
+    @Environment(\.modelContext) var modelContext
+    @Query var expenseItems: [ExpenseItem]
     
+    let currencyCode = Locale.current.currency?.identifier ?? "USD"
+    @State private var filter: ExpenseItem.FilterType = .all
+    
+    @State private var sortOrder = [
+        SortDescriptor(\ExpenseItem.type),
+        SortDescriptor(\ExpenseItem.amount)
+    ]
     
     var body: some View {
         NavigationStack() {
-            List {
-                Section("Personal Expenses") {
-                    ForEach(expenses.items) { item in
-                        if item.type == "Personal" {
-                            HStack {
-                                VStack {
-                                    Text(item.name)
-                                    Text(item.type)
-                                }
-                                Spacer()
-                                Text(item.amount, format: .currency(code: currencyCode))
-                                    .foregroundStyle(item.amountStyle)
-                            }
+            ExpenseItemsView(filter: filter, sortOrder: sortOrder)
+            
+                .navigationTitle("iExpense")
+                .toolbar {
+                    NavigationLink("Add") {
+                        AddView()
+                    }
+                    Menu("Sort by type", systemImage: "arrow.up.arrow.down") {
+                        Button("All") {
+                            filter = .all
+                        }
+                        Button("Personal") {
+                            filter = .personal
+                        }
+                        Button("Business") {
+                            filter = .business
                         }
                     }
-                    .onDelete(perform: removeItems)
-                    
-                }
-                Section("Business Expenses") {
-                    ForEach(expenses.items) { item in
-                        if item.type == "Business" {
-                            HStack {
-                                VStack {
-                                    Text(item.name)
-                                    Text(item.type)
-                                }
-                                Spacer()
-                                Text(item.amount, format: .currency(code: currencyCode))
-                                    .foregroundStyle(item.amountStyle)
-                            }
+                    Menu("Sort by name or amount", systemImage: "arrow.up.arrow.down") {
+                        Picker("Sort", selection: $sortOrder) {
+                            Text("Sort by Name")
+                                .tag([
+                                    SortDescriptor(\ExpenseItem.name),
+                                    SortDescriptor(\ExpenseItem.amount)])
+                            
+                            Text("Sort by Amount")
+                                .tag([
+                                    SortDescriptor(\ExpenseItem.amount),
+                                    SortDescriptor(\ExpenseItem.name)])
                         }
-                    }
-                    .onDelete(perform: removeItems)
-                }
-            }
-            .navigationTitle("iExpense")
-            .toolbar {
-                NavigationLink("Add") {
-                    AddView(expenses: expenses)
-                }
-            }
+                    }}
         }
-    }
-    func removeItems(at offIndex: IndexSet) {
-        expenses.items.remove(atOffsets: offIndex)
     }
 }
 
